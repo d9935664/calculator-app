@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<!-- 關鍵：設定視窗與禁止縮放，讓體驗像原生 App -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+
+<!-- iOS PWA 專用設定 -->
+<meta name="apple-mobile-web-app-capable" content="yes"> <!-- 啟用 Web App 模式 -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"> <!-- 狀態列透明 -->
+<meta name="apple-mobile-web-app-title" content="有巢計算機"> <!-- 桌面顯示名稱 -->
+
+<!-- 這裡建議你自己找一張 180x180 的 PNG圖片，命名為 icon.png 放在同目錄，然後解除下面這行的註解 -->
+<!-- <link rel="apple-touch-icon" href="icon.png"> -->
+
+<title>有巢氏松山敦化 | 全能資源系統 Pro</title>
+<style>
+    /* --- 核心視覺變數 --- */
+    :root {
+        --primary: #009E49;
+        --primary-dark: #005826;
+        --gold: #B8860B;
+        --blue: #007AFF;
+        --bg-grad: linear-gradient(135deg, #f6f8fb 0%, #e2e6ea 100%);
+        --glass: rgba(255, 255, 255, 0.95);
+        --glass-border: 1px solid rgba(255, 255, 255, 0.8);
+        --shadow: 0 8px 20px 0 rgba(0, 0, 0, 0.05);
+        --text-main: #2d3436;
+        --text-sub: #636e72;
+        --radius: 16px;
+        /* 針對 iPhone 瀏海/動態島的安全區域設定 */
+        --safe-top: env(safe-area-inset-top);
+        --safe-bottom: env(safe-area-inset-bottom);
+    }
+
+    body {
+        margin: 0; padding: 0;
+        background: var(--bg-grad);
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro TC", "Microsoft JhengHei", sans-serif;
+        color: var(--text-main);
+        padding-bottom: calc(100px + var(--safe-bottom)); /* 避開底部橫條 */
+        min-height: 100vh;
+        -webkit-font-smoothing: antialiased;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; user-select: none; }
+    a { text-decoration: none; color: inherit; }
+
+    /* --- Header 優化 (避開瀏海) --- */
+    .header {
+        position: sticky; top: 0; z-index: 100;
+        background: rgba(255, 255, 255, 0.98);
+        backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+        padding: 12px 20px;
+        padding-top: calc(12px + var(--safe-top)); /* 增加頂部安全距離 */
+        box-shadow: 0 1px 10px rgba(0,0,0,0.05);
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .brand-box { display: flex; align-items: center; gap: 10px; }
+    .logo-svg { width: 32px; height: 32px; }
+    .brand-text h1 { margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--primary); letter-spacing: 0.5px; }
+    .brand-text p { margin: 0; font-size: 0.7rem; color: var(--text-sub); letter-spacing: 1px; text-transform: uppercase; }
+
+    /* --- Navigation --- */
+    .nav-bar {
+        display: flex; gap: 10px; padding: 15px 20px;
+        overflow-x: auto; scroll-behavior: smooth;
+        -ms-overflow-style: none; scrollbar-width: none;
+    }
+    .nav-bar::-webkit-scrollbar { display: none; }
+    .nav-item {
+        flex: 0 0 auto; padding: 8px 18px;
+        background: #fff;
+        border: 1px solid #eee;
+        border-radius: 50px;
+        font-size: 0.9rem; font-weight: 600; color: var(--text-sub);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+        transition: 0.2s; cursor: pointer; white-space: nowrap;
+    }
+    .nav-item.active {
+        background: var(--primary); color: white; border-color: var(--primary);
+        box-shadow: 0 4px 12px rgba(0,158,73,0.3);
+        transform: translateY(-1px);
+    }
+
+    /* --- Pages --- */
+    .page { display: none; padding: 0 20px; animation: fadeIn 0.3s ease-out; }
+    .page.show { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* --- Dashboards --- */
+    .dashboard {
+        color: white; border-radius: var(--radius); padding: 25px;
+        margin-bottom: 20px; position: relative; overflow: hidden;
+        box-shadow: var(--shadow);
+    }
+    .dashboard.blue { background: linear-gradient(135deg, #007AFF 0%, #0055b3 100%); }
+    .dashboard.gold { background: linear-gradient(135deg, #D4AF37 0%, #996515 100%); }
+    .dashboard.green { background: linear-gradient(135deg, #009E49 0%, #005826 100%); }
+    
+    .d-title { font-size: 0.8rem; opacity: 0.9; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 5px; }
+    .d-main { font-size: 2.5rem; font-weight: 700; margin-bottom: 15px; line-height: 1; }
+    .d-unit { font-size: 1rem; font-weight: 500; margin-left: 5px; }
+    .d-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px; }
+    .d-sub-v { font-size: 1.2rem; font-weight: 600; }
+    .d-sub-l { font-size: 0.75rem; opacity: 0.8; margin-top: 3px; }
+
+    /* --- Cards & Tables --- */
+    .card {
+        background: var(--glass); border: var(--glass-border);
+        border-radius: var(--radius); padding: 20px; margin-bottom: 15px;
+        box-shadow: var(--shadow);
+    }
+    .card-title {
+        font-size: 1rem; font-weight: 700; margin-bottom: 15px;
+        display: flex; align-items: center; color: var(--text-main);
+    }
+    .card-title::before { content:''; width: 4px; height: 16px; background: var(--primary); border-radius: 2px; margin-right: 10px; }
+    
+    .input-group { margin-bottom: 15px; }
+    .label-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem; font-weight: 600; color: #555; }
+    
+    .smart-input {
+        width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 10px;
+        background: #fff; text-align: right; font-size: 1.1rem; font-weight: 600; color: var(--text-main);
+        font-family: monospace; -webkit-appearance: none;
+    }
+    .smart-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,158,73,0.1); }
+
+    /* Sliders & Buttons */
+    input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; margin-top: 10px; height: 24px; }
+    input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #ddd; border-radius: 2px; }
+    input[type=range]::-webkit-slider-thumb {
+        -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%;
+        background: #fff; border: 2px solid var(--primary); margin-top: -8px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .btn-grid { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+    .toggle-btn {
+        flex: 1; padding: 10px; text-align: center; white-space: nowrap;
+        background: #fff; border: 1px solid #ddd; border-radius: 8px;
+        color: #666; font-size: 0.85rem; transition: 0.2s;
+    }
+    .toggle-btn.active {
+        background: var(--primary); color: white; border-color: var(--primary);
+        font-weight: 700; box-shadow: 0 2px 8px rgba(0,158,73,0.2);
+    }
+
+    /* --- Resource & Tables Styles --- */
+    .link-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .link-btn {
+        display: flex; align-items: center; gap: 12px;
+        background: #fff; border: 1px solid #eee; border-radius: 12px; padding: 15px;
+        transition: 0.2s; position: relative; overflow: hidden;
+    }
+    .link-btn:active { transform: scale(0.98); background: #f4f4f4; }
+    .link-icon { font-size: 1.5rem; background: #f5f7fa; width: 40px; height: 40px; display:flex; align-items:center; justify-content:center; border-radius: 50%; }
+    .link-content { display: flex; flex-direction: column; }
+    .link-title { font-size: 0.95rem; font-weight: 700; color: #333; }
+    .link-desc { font-size: 0.7rem; color: #999; margin-top: 2px; }
+    .link-arrow { margin-left: auto; color: #ddd; }
+
+    /* Info Table Style */
+    .info-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .info-table th { text-align: left; color: #666; padding: 8px 5px; border-bottom: 1px solid #eee; font-weight: normal; }
+    .info-table td { text-align: right; padding: 8px 5px; border-bottom: 1px solid #eee; font-weight: 600; color: #333; }
+    .info-table tr:last-child td, .info-table tr:last-child th { border-bottom: none; }
+    .hl-row td { color: var(--primary); }
+    
+    /* Tag */
+    .tag { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; margin-bottom: 10px; }
+    .tag.red { background: #ffebee; color: #d32f2f; }
+    .tag.blue { background: #e3f2fd; color: #1976d2; }
+    .tag.gold { background: #fff8e1; color: #f57f17; }
+    .tag.green { background: #e8f5e9; color: #2e7d32; }
+
+    /* Fee Box */
+    .fee-box { background: #f8f9fa; border-radius: 10px; padding: 12px; margin-top: 10px; }
+    .fee-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.85rem; color: #555; }
+    .fee-row.total { border-top: 1px solid #ddd; padding-top: 8px; margin-top: 8px; font-weight: bold; color: #000; font-size: 1rem; }
+
+    /* --- Footer --- */
+    .footer-float {
+        position: fixed; bottom: 20px; left: 20px; right: 20px;
+        bottom: calc(20px + var(--safe-bottom)); /* 避開 iPhone 底部橫條 */
+        background: rgba(30, 30, 30, 0.95);
+        backdrop-filter: blur(10px);
+        padding: 10px 20px; border-radius: 50px;
+        display: flex; justify-content: space-between; align-items: center;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+        z-index: 999;
+    }
+    .agent-info { color: white; }
+    .agent-name { font-size: 0.9rem; font-weight: 700; }
+    .agent-addr { font-size: 0.7rem; opacity: 0.7; }
+    .call-btn {
+        width: 40px; height: 40px; background: var(--primary); border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        color: white; text-decoration: none; font-size: 1.2rem;
+        box-shadow: 0 0 10px rgba(0,158,73,0.5);
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0% {box-shadow: 0 0 0 0 rgba(0,158,73,0.7);} 70% {box-shadow: 0 0 0 8px rgba(0,158,73,0);} 100% {box-shadow: 0 0 0 0 rgba(0,158,73,0);} }
+
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div class="brand-box">
+        <svg class="logo-svg" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="50" fill="#009E49"/>
+            <path d="M50 20 L75 45 H65 V75 H35 V45 H25 Z" fill="white"/>
+            <path d="M40 75 V55 H60 V75" fill="#009E49"/>
+        </svg>
+        <div class="brand-text">
+            <h1>有巢氏房屋</h1>
+            <p>Songshan Dunhua</p>
+        </div>
+    </div>
+    <div style="font-size:0.75rem; color:#999; background:#f0f0f0; padding:2px 8px; border-radius:10px">Pro V1.5</div>
+</div>
+
+<div class="nav-bar">
+    <div class="nav-item active" onclick="go('afford', this)">購屋能力</div>
+    <div class="nav-item" onclick="go('roi', this)">投報率</div>
+    <div class="nav-item" onclick="go('tax', this)">房地合一</div>
+    <div class="nav-item" onclick="go('cost', this)">買賣雜費</div>
+    <div class="nav-item" onclick="go('loan', this)">房貸試算</div>
+    <div class="nav-item" onclick="go('unit', this)">坪數換算</div>
+    <div class="nav-item" onclick="go('resource', this)">法規資源</div>
+</div>
+
+<div id="page-afford" class="page show">
+    <div class="dashboard blue">
+        <div class="d-title">建議購屋總價</div>
+        <div class="d-main" id="aff-total">0</div>
+        <div class="d-unit">萬元 (含自備)</div>
+        <div class="d-grid">
+            <div><div class="d-sub-v" id="aff-loan">0</div><div class="d-sub-l">銀行貸款(萬)</div></div>
+            <div><div class="d-sub-v" id="aff-mo">0</div><div class="d-sub-l">月負擔上限</div></div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-title">財務條件</div>
+        <div class="input-group">
+            <div class="label-row"><span>自備款 (萬)</span></div>
+            <input type="number" id="aff-cash" class="smart-input" value="300" oninput="cAff()">
+        </div>
+        <div class="input-group">
+            <div class="label-row"><span>月收入 (元)</span></div>
+            <input type="number" id="aff-income" class="smart-input" value="100000" oninput="cAff()">
+        </div>
+        <div class="input-group">
+            <div class="label-row"><span>負債比上限</span></div>
+            <div class="btn-grid">
+                <div class="toggle-btn active" onclick="setRatio(0.33,this)">保守33%</div>
+                <div class="toggle-btn" onclick="setRatio(0.4,this)">一般40%</div>
+                <div class="toggle-btn" onclick="setRatio(0.5,this)">積極50%</div>
+            </div>
+        </div>
+        <div class="input-group">
+            <div class="label-row"><span>貸款年限</span><span id="aff-y-txt" style="color:var(--primary)">30年</span></div>
+            <input type="range" min="20" max="40" step="10" value="30" oninput="cAffY=this.value; el('aff-y-txt').innerText=this.value+'年'; cAff()">
+        </div>
+    </div>
+</div>
+
+<div id="page-roi" class="page">
+    <div class="dashboard gold">
+        <div class="d-title">淨投報率 (ROI)</div>
+        <div class="d-main" id="roi-net">0.00</div>
+        <div class="d-unit">%</div>
+        <div class="d-grid">
+            <div><div class="d-sub-v" id="roi-cash">0</div><div class="d-sub-l">月淨收</div></div>
+            <div><div class="d-sub-v" id="roi-gross">0.00%</div><div class="d-sub-l">毛投報</div></div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-title">物件條件</div>
+        <div class="input-group">
+            <div class="label-row"><span>總價 (萬)</span></div>
+            <input type="number" id="roi-p" class="smart-input" value="2500" oninput="sync('roi-p',this.value);cRoi()">
+            <input type="range" id="sl-roi-p" min="500" max="8000" step="10" value="2500" oninput="sync('roi-p',this.value,true);cRoi()">
+        </div>
+        <div class="input-group">
+            <div class="label-row"><span>月租 (元)</span></div>
+            <input type="number" id="roi-r" class="smart-input" value="45000" oninput="sync('roi-r',this.value);cRoi()">
+            <input type="range" id="sl-roi-r" min="10000" max="150000" step="1000" value="45000" oninput="sync('roi-r',this.value,true);cRoi()">
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-title">持有成本</div>
+        <div class="input-group">
+            <div class="label-row"><span>月管理費</span><input type="number" id="roi-m" class="smart-input" value="3500" style="width:120px;" oninput="cRoi()"></div>
+        </div>
+        <div class="input-group">
+            <div class="label-row"><span>年稅金(房屋+地價)</span><input type="number" id="roi-t" class="smart-input" value="12000" style="width:120px;" oninput="cRoi()"></div>
+        </div>
+        <div class="input-group">
+            <div class="label-row"><span>每年空窗期</span></div>
+            <div class="btn-grid">
+                <div class="toggle-btn" onclick="setVac(0,this)">滿租</div>
+                <div class="toggle-btn active" onclick="setVac(1,this)">1個月</div>
+                <div class="toggle-btn" onclick="setVac(2,this)">2個月</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="page-tax" class="page">
+    <div class="dashboard green">
+        <div class="d-title">預估稅額</div>
+        <div class="d-main" id="tax-v">0</div>
+        <div class="d-unit">萬元</div>
+        <div class="d-grid">
+            <div><div class="d-sub-v" id="tax-earn">0</div><div class="d-sub-l">稅後獲利</div></div>
+            <div><div class="d-sub-v" id="tax-rate">45%</div><div class="d-sub-l">適用稅率</div></div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-title">試算參數</div>
+        <div class="input-group">
+            <div class="label-row"><span>賣出價 (萬)</span></div>
+            <input type="number" id="tax-s" class="smart-input" value="2500" oninput="cTax()">
+        </div>
+        <div class="input-group">
+            <div class="label-row"><span>取得成本 (萬)</span></div>
+            <input type="number" id="tax-b" class="smart-input" value="1800" oninput="cTax()">
+        </div>
+        <div class="input-group">
+            <div class="label-row"><span>持有期間</span></div>
+            <div class="btn-grid">
+                <div class="toggle-btn active" onclick="setTR(0.45,this)">2年內</div>
+                <div class="toggle-btn" onclick="setTR(0.35,this)">2-5年</div>
+                <div class="toggle-btn" onclick="setTR(0.20,this)">5-10年</div>
+                <div class="toggle-btn" onclick="setTR(0.15,this)">10年+</div>
+            </div>
+        </div>
+        <div style="margin-top:15px; display:flex; justify-content:space-between; align-items:center; background:#f0f7f4; padding:12px; border-radius:10px; border:1px solid #cceadd;">
+            <div>
+                <div style="font-size:0.9rem; font-weight:bold; color:var(--primary-dark)">自用滿6年</div>
+                <div style="font-size:0.7rem; color:#666">400萬免稅+10%稅率</div>
+            </div>
+            <input type="checkbox" id="tax-self" onchange="cTax()" style="width:24px; height:24px; accent-color:var(--primary)">
+        </div>
+    </div>
+</div>
+
+<div id="page-cost" class="page">
+    <div class="dashboard blue">
+        <div class="d-title">購屋雜費預估</div>
+        <div class="d-main" id="cost-total">0</div>
+        <div class="d-unit">元</div>
+    </div>
+    <div class="card">
+        <div class="card-title">輸入成交價</div>
+        <div class="input-group">
+            <input type="number" id="cost-p" class="smart-input" value="2500" oninput="cCost()">
+        </div>
+        
+        <div class="fee-box">
+            <div class="fee-row"><span>仲介服務費 (2%)</span><span id="c-agt">0</span></div>
+            <div class="fee-row"><span>契稅 (預估值)</span><span id="c-deed">0</span></div>
+            <div class="fee-row"><span>代書簽約/移轉費</span><span>25,000</span></div>
+            <div class="fee-row"><span>實價登錄代辦</span><span>2,000</span></div>
+            <div class="fee-row"><span>成屋履約保證 (萬分之3)</span><span id="c-esc">0</span></div>
+            <div class="fee-row total"><span>總計</span><span id="c-total-txt">0</span></div>
+        </div>
+        <div style="font-size:0.7rem; color:#888; margin-top:10px; text-align:center;">
+            *契稅視房屋現值而定，此為概算僅供參考
+        </div>
+    </div>
+</div>
+
+<div id="page-loan" class="page">
+    <div class="dashboard green">
+        <div class="d-title">本息平均攤還</div>
+        <div class="d-main" id="ln-pay">0</div>
+        <div class="d-unit">元/月</div>
+        <div class="d-grid">
+            <div><div class="d-sub-v" id="ln-tot">0</div><div class="d-sub-l">貸款總額(萬)</div></div>
+            <div><div class="d-sub-v" id="ln-grace" style="color:#B8860B">0</div><div class="d-sub-l">寬限期月付</div></div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="input-group">
+            <div class="label-row"><span>房價 (萬)</span></div>
+            <input type="number" id="ln-p" class="smart-input" value="2500" oninput="cLoan()">
+        </div>
+        <div class="input-group">
+            <div class="label-row"><span>成數 (%)</span><span id="ln-c-txt" style="color:var(--primary)">80%</span></div>
+            <input type="range" min="50" max="90" step="5" value="80" oninput="cLoanPct=this.value; el('ln-c-txt').innerText=this.value+'%'; cLoan()">
+        </div>
+        <div class="input-group">
+            <div class="label-row"><span>年利率 (%)</span></div>
+            <input type="number" id="ln-r" class="smart-input" value="2.185" step="0.005" oninput="cLoan()">
+        </div>
+        <div class="input-group">
+            <div class="label-row"><span>年限 / 寬限期</span></div>
+            <div style="display:flex; gap:10px">
+                <select id="ln-y" class="smart-input" onchange="cLoan()">
+                    <option value="20">20年</option>
+                    <option value="30" selected>30年</option>
+                    <option value="40">40年</option>
+                </select>
+                <select id="ln-g" class="smart-input" onchange="cLoan()">
+                    <option value="0">無寬限</option>
+                    <option value="2">2年</option>
+                    <option value="3">3年</option>
+                    <option value="5">5年</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="page-unit" class="page">
+    <div class="card">
+        <div class="card-title">面積換算</div>
+        <div class="input-group">
+            <div class="label-row"><span>坪數</span></div>
+            <input type="number" id="u-ping" class="smart-input" placeholder="輸入坪數" oninput="cUnit('p')">
+        </div>
+        <div style="text-align:center; font-size:1.5rem; color:var(--primary); margin:5px 0">⇅</div>
+        <div class="input-group">
+            <div class="label-row"><span>平方公尺 (m²)</span></div>
+            <input type="number" id="u-m2" class="smart-input" placeholder="輸入m²" oninput="cUnit('m')">
+        </div>
+        <div style="margin-top:20px; background:#f8f9fa; padding:15px; border-radius:12px; text-align:center; color:#666;">
+            <div style="font-weight:bold; margin-bottom:5px">換算公式</div>
+            1 坪 = 3.3058 m²<br>
+            1 m² = 0.3025 坪
+        </div>
+    </div>
+</div>
+
+<div id="page-resource" class="page">
+    
+    <div class="card">
+        <div class="card-title">官方查詢工具 (已更新)</div>
+        <div class="link-grid">
+            <a href="https://lvr.land.moi.gov.tw/" target="_blank" class="link-btn">
+                <div class="link-icon">🏠</div>
+                <div class="link-content">
+                    <div class="link-title">實價登錄</div>
+                    <div class="link-desc">內政部官方版</div>
+                </div>
+            </a>
+            <a href="https://maps.nlsc.gov.tw/" target="_blank" class="link-btn">
+                <div class="link-icon">🗺️</div>
+                <div class="link-content">
+                    <div class="link-title">國土測繪圖</div>
+                    <div class="link-desc">查詢地籍/分區</div>
+                </div>
+            </a>
+            <a href="https://land.gov.taipei/" target="_blank" class="link-btn">
+                <div class="link-icon">🏛️</div>
+                <div class="link-content">
+                    <div class="link-title">台北地政雲</div>
+                    <div class="link-desc">北市專用圖資</div>
+                </div>
+            </a>
+            <a href="https://www.etax.nat.gov.tw/etwmain/tax-pre-calculation/tax-pre-calculation-area" target="_blank" class="link-btn">
+                <div class="link-icon">🧾</div>
+                <div class="link-content">
+                    <div class="link-title">稅務試算</div>
+                    <div class="link-desc">財政部入口</div>
+                </div>
+            </a>
+            <a href="https://law.moj.gov.tw/" target="_blank" class="link-btn">
+                <div class="link-icon">⚖️</div>
+                <div class="link-content">
+                    <div class="link-title">法規查詢</div>
+                    <div class="link-desc">全國法規資料庫</div>
+                </div>
+            </a>
+            <a href="https://pip.moi.gov.tw/V3/B/SCRB0102.aspx" target="_blank" class="link-btn">
+                <div class="link-icon">💰</div>
+                <div class="link-content">
+                    <div class="link-title">住宅補貼</div>
+                    <div class="link-desc">內政部專區</div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">常用不動產小知識</div>
+        
+        <div class="tag blue">坪數定義</div>
+        <div style="font-size:0.85rem; color:#555; margin-bottom:12px; line-height:1.6; padding-left:5px">
+            • <b>主建物</b>：客廳、餐廳、臥室等室內面積。<br>
+            • <b>附屬建物</b>：陽台、雨遮、露台。<br>
+            • <b>公設比</b>：公共設施 ÷ (主建物+附屬+公設) × 100%
+        </div>
+
+        <div class="tag gold">一般買賣流程 (約30-45天)</div>
+        <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#333; text-align:center; margin-bottom:12px; gap:5px">
+            <div style="background:#f9f9f9; padding:8px 2px; border-radius:6px; flex:1; border:1px solid #eee">
+                <div style="font-weight:bold; margin-bottom:2px">1.簽約</div>
+                <div style="font-size:0.7rem; color:#999">10%款</div>
+            </div>
+            <div style="background:#f9f9f9; padding:8px 2px; border-radius:6px; flex:1; border:1px solid #eee">
+                <div style="font-weight:bold; margin-bottom:2px">2.用印</div>
+                <div style="font-size:0.7rem; color:#999">10%款</div>
+            </div>
+            <div style="background:#f9f9f9; padding:8px 2px; border-radius:6px; flex:1; border:1px solid #eee">
+                <div style="font-weight:bold; margin-bottom:2px">3.完稅</div>
+                <div style="font-size:0.7rem; color:#999">10%款</div>
+            </div>
+            <div style="background:#f9f9f9; padding:8px 2px; border-radius:6px; flex:1; border:1px solid #eee">
+                <div style="font-weight:bold; margin-bottom:2px">4.交屋</div>
+                <div style="font-size:0.7rem; color:#999">70%款</div>
+            </div>
+        </div>
+        
+        <div class="tag red">央行限貸令重點</div>
+        <ul style="margin:0; padding-left:20px; font-size:0.85rem; color:#555; line-height:1.6">
+            <li><b>自然人第2戶</b>：最高貸款 6 成，無寬限期。</li>
+            <li><b>豪宅標準</b>：北市7000萬、新北6000萬 (最高4成)。</li>
+            <li><b>公司法人購屋</b>：最高貸款 4 成，無寬限期。</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <div class="card-title">房地合一稅率 2.0 (持有期間)</div>
+        <table class="info-table">
+            <tr><th>持有時間</th><th>境內居住者</th><th>非境內</th></tr>
+            <tr class="hl-row"><th>2 年以內</th><td>45%</td><td>45%</td></tr>
+            <tr><th>2 - 5 年</th><td>35%</td><td>35%</td></tr>
+            <tr><th>5 - 10 年</th><td>20%</td><td>20%</td></tr>
+            <tr><th>10 年以上</th><td>15%</td><td>15%</td></tr>
+            <tr style="background:#f0f7f4">
+                <th colspan="3" style="text-align:center; color:var(--primary); padding:10px">
+                    ★ 自用滿6年：免稅額400萬，超過部分10%
+                </th>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <div class="card-title">買賣稅費負擔對照</div>
+        <table class="info-table">
+            <tr style="background:#f5f5f5"><th>項目</th><th>買方負擔</th><th>賣方負擔</th></tr>
+            <tr><th>房地合一稅</th><td>-</td><td>●</td></tr>
+            <tr><th>土地增值稅</th><td>-</td><td>●</td></tr>
+            <tr><th>房屋稅/地價稅</th><td colspan="2" style="text-align:center; font-size:0.8rem; color:#888">以交屋日為分算點</td></tr>
+            <tr><th>契稅</th><td>●</td><td>-</td></tr>
+            <tr><th>印花稅</th><td>●</td><td>-</td></tr>
+            <tr><th>代書費</th><td>● (簽約+登記)</td><td>● (塗銷)</td></tr>
+            <tr><th>仲介費</th><td>2% (行情)</td><td>4% (行情)</td></tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <div class="card-title">遺產與贈與稅 (2024-25參考)</div>
+        <div class="tag gold">遺產稅</div>
+        <table class="info-table" style="margin-bottom:15px">
+            <tr><th>免稅額</th><td>1,333 萬元</td></tr>
+            <tr><th>配偶扣除額</th><td>553 萬元</td></tr>
+            <tr><th>喪葬費扣除</th><td>138 萬元</td></tr>
+        </table>
+        <div class="tag green">贈與稅</div>
+        <table class="info-table">
+            <tr><th>每人每年免稅額</th><td>244 萬元</td></tr>
+        </table>
+        <div style="font-size:0.7rem; color:#999; margin-top:10px; text-align:right">
+            *實際額度以國稅局當年度公告為準
+        </div>
+    </div>
+    
+    <div style="height:40px"></div>
+</div>
+
+<div class="footer-float">
+    <div class="agent-info">
+        <div class="agent-name">有巢氏房屋 松山敦化店</div>
+        <div class="agent-addr">台北市松山區民生東路四段57號</div>
+    </div>
+    <a href="tel:0227120899" class="call-btn">📞</a>
+</div>
+
+<script>
+    // Utils
+    const el = (id) => document.getElementById(id);
+    const val = (id) => Number(el(id).value) || 0;
+    const set = (id, v) => { if(el(id)) el(id).innerText = v.toLocaleString(undefined,{maximumFractionDigits:0}); };
+    
+    // Navigation
+    function go(pg, btn) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('show'));
+        el('page-'+pg).classList.add('show');
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        btn.classList.add('active');
+        window.scrollTo(0,0);
+    }
+
+    // Sync Sliders
+    function sync(id, v, isSlider=false) {
+        if(isSlider) el(id).value = v;
+        else el('sl-'+id).value = v;
+    }
+
+    // 1. Affordability
+    let affRatio = 0.33;
+    let cAffY = 30;
+    function setRatio(r, btn) {
+        affRatio = r;
+        btn.parentElement.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        cAff();
+    }
+    function cAff() {
+        let cash = val('aff-cash')*10000;
+        let inc = val('aff-income');
+        let r = 2.185/100/12; 
+        let n = cAffY * 12;
+        let limit = inc * affRatio;
+        
+        let loan = 0;
+        if(r>0) loan = limit * ((1 - Math.pow(1+r, -n))/r);
+        else loan = limit * n;
+
+        set('aff-total', (loan+cash)/10000);
+        set('aff-loan', loan/10000);
+        set('aff-mo', limit);
+    }
+
+    // 2. ROI
+    let roiVac = 1;
+    function setVac(v, btn) {
+        roiVac = v;
+        btn.parentElement.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        cRoi();
+    }
+    function cRoi() {
+        let p = val('roi-p')*10000;
+        let r = val('roi-r');
+        let m = val('roi-m');
+        let t = val('roi-t');
+        if(p<=0) return;
+
+        let gross = (r*12)/p*100;
+        let netInc = (r*(12-roiVac)) - (m*12) - t;
+        let net = (netInc/p)*100;
+        
+        el('roi-gross').innerText = gross.toFixed(2)+'%';
+        el('roi-net').innerText = net.toFixed(2);
+        set('roi-cash', Math.round(netInc/12));
+    }
+
+    // 3. Tax
+    let taxR = 0.45;
+    function setTR(r, btn) {
+        taxR = r;
+        btn.parentElement.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        cTax();
+    }
+    function cTax() {
+        let s = val('tax-s');
+        let b = val('tax-b');
+        let isSelf = el('tax-self').checked;
+        let deduct = 30;
+        let exempt = isSelf ? 400 : 0;
+        let rate = isSelf ? 0.1 : taxR;
+        
+        let profit = Math.max(0, s - b - deduct);
+        let taxable = Math.max(0, profit - exempt);
+        let tax = Math.round(taxable * rate);
+        
+        set('tax-v', tax);
+        set('tax-earn', profit - tax);
+        el('tax-rate').innerText = (rate*100)+'%';
+    }
+
+    // 4. Costs
+    function cCost() {
+        let p = val('cost-p')*10000;
+        let agent = p * 0.02;
+        let deed = p * 0.015 * 0.06; // 概算
+        let escrow = p * 0.0003; 
+        let doc = 25000;
+        let login = 2000;
+        
+        set('c-agt', agent);
+        set('c-deed', deed);
+        set('c-esc', escrow);
+        let total = agent+deed+doc+escrow+login;
+        set('cost-total', total);
+        set('c-total-txt', total);
+    }
+
+    // 5. Loan
+    let cLoanPct = 80;
+    function cLoan() {
+        let p = val('ln-p')*10000;
+        let r = val('ln-r')/100/12;
+        let y = val('ln-y')*12; 
+        let g = val('ln-g')*12; 
+        
+        let loan = p * (cLoanPct/100);
+        let gracePay = loan * r; 
+        
+        let remain = y - g;
+        let fullPay = 0;
+        if(r===0) fullPay = loan/remain;
+        else fullPay = loan * ((Math.pow(1+r, remain)*r)/(Math.pow(1+r, remain)-1));
+
+        set('ln-pay', fullPay);
+        set('ln-tot', loan/10000);
+        set('ln-grace', g>0 ? gracePay : 0);
+    }
+
+    // 6. Unit
+    function cUnit(mode) {
+        if(mode === 'p') {
+            let p = val('u-ping');
+            el('u-m2').value = (p * 3.3058).toFixed(2);
+        } else {
+            let m = val('u-m2');
+            el('u-ping').value = (m * 0.3025).toFixed(2);
+        }
+    }
+
+    // Init
+    window.onload = function() {
+        cAff(); cRoi(); cTax(); cCost(); cLoan();
+    }
+</script>
+</body>
+</html>
